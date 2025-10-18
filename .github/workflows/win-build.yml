@@ -1,0 +1,58 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release-windows-x86_64:
+    name: Release - Windows-x86_64
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update CHANGELOG
+        if: startsWith(github.ref, 'refs/tags/')
+        id: changelog
+        uses: requarks/changelog-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.ref_name }}
+          writeToFile: true
+          changelogFilePath: "CHANGELOG.md"
+
+      - name: Build binwalk for Windows x86_64
+        uses: houseabsolute/actions-rust-cross@v1
+        with:
+          command: build
+          target: x86_64-pc-windows-msvc
+          args: "--locked --release"
+          strip: true
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binwalk-windows-x86_64
+          path: target/x86_64-pc-windows-msvc/release/binwalk.exe
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: houseabsolute/actions-rust-release@v0
+        with:
+          executable-name: binwalk
+          target: x86_64-pc-windows-msvc
+          release-tag-prefix: v
+          changes-file: "CHANGELOG.md"
+          action-gh-release-parameters: |
+            {
+              "draft": false,
+              "prerelease": false,
+              "overwrite": true,
+              "generate_release_notes": true,
+              "make_latest": true,
+              "body_path": "CHANGELOG.md",
+              "token": "${{ secrets.GITHUB_TOKEN }}"
+            }
